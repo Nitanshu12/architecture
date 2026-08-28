@@ -1,0 +1,136 @@
+# ============================================================
+# Source Configuration — District Evolution Intelligence System
+# Architecture v0.3 alignment
+# ============================================================
+#
+# This file defines every source dataset, its location, primary key,
+# field mappings, and authority ranks per Architecture §6 (Source Model).
+#
+# RULES:
+#   - source_pk must be validated for uniqueness and nullability
+#     BEFORE it is registered as a source identifier.
+#   - quarantine_layers are ingested but isolated; their semantics
+#     must be established before they enter the primary pipeline.
+#   - effective_year in events is an OBSERVED YEAR (integer), NOT a date.
+#     Any downstream DATE anchor must be labelled as estimated.
+#   - SOI CRS is preserved as-is in Bronze; reprojection is Silver.
+# ============================================================
+
+sources:
+  stanford:
+    type: spatial
+    provenance: "Stanford University Historical Indian District Boundaries"
+    legal_authority_rank: 4
+    spatial_precision_rank: 3
+    notes: "Academic compilation; secondary source for administrative boundaries"
+    datasets:
+      "1951":
+        path: data/bronze/stanford/1951/1951.gpkg
+        primary_layer: districts_1951
+        source_pk: C_CODE51
+        name_field: NAME
+        state_field: STATE_UT
+        observation_year: 1951
+        quarantine_layers:
+          "1951":
+            reason: >
+              Unknown 2-feature layer with synthetic geometries
+              (bbox 0,0 to 10,10). Only 2 rows. Semantics unestablished.
+              Do NOT merge with primary layer or discard.
+      "1961":
+        path: data/bronze/stanford/1961/1961.gpkg
+        primary_layer: districts_1961
+        source_pk: C_CODE61
+        name_field: NAME
+        state_field: STATE_UT
+        observation_year: 1961
+      "1971":
+        path: data/bronze/stanford/1971/1971.gpkg
+        primary_layer: districts_1971
+        source_pk: C_CODE71
+        name_field: NAME
+        state_field: STATE_UT
+        observation_year: 1971
+      "1981":
+        path: data/bronze/stanford/1981/1981.gpkg
+        primary_layer: districts_1981
+        source_pk: C_CODE81
+        name_field: NAME
+        state_field: STATE_UT
+        observation_year: 1981
+      "1991":
+        path: data/bronze/stanford/1991/1991.gpkg
+        primary_layer: districts_1991
+        source_pk: DISTRICT_9
+        name_field: NAME
+        state_field: STATE_UT
+        observation_year: 1991
+      "2001":
+        path: data/bronze/stanford/2001/2001.gpkg
+        primary_layer: districts_2001
+        source_pk: DIS01_ID
+        name_field: NAME
+        state_field: STATE_UT
+        observation_year: 2001
+      "2011":
+        path: data/bronze/stanford/2011/2011.gpkg
+        primary_layer: districts_2011
+        source_pk: pc11_d_id
+        name_field: d_name
+        state_field: null
+        state_code_field: pc11_s_id
+        observation_year: 2011
+        notes: "No explicit state name field; pc11_s_id is a state code"
+      "2021":
+        path: data/bronze/stanford/2021/2021.gpkg
+        primary_layer: districts_2021
+        source_pk: JID
+        name_field: dtname
+        state_field: stname
+        observation_year: 2021
+        notes: "Contains LGD codes (Dist_LGD, State_LGD) — preserve for Silver"
+
+  soi:
+    type: spatial
+    provenance: "Survey of India Official District Boundaries"
+    legal_authority_rank: 3
+    spatial_precision_rank: 1
+    notes: >
+      Highest spatial precision. Uses Lambert Conformal Conic projection
+      (LCC_WGS84). Bronze preserves original CRS; reprojection to
+      EPSG:4326 is a Silver-layer operation. Metric area calculations
+      should use native CRS, not storage CRS.
+    datasets:
+      "2025":
+        path: data/bronze/soi/2025/2025.gpkg
+        primary_layer: India_District_Boundary
+        source_pk: DISTRICT_L
+        name_field: District
+        state_field: STATE
+        observation_year: 2025
+        original_crs: "LCC_WGS84 (Lambert Conformal Conic)"
+        notes: >
+          Contains mixed Polygon/MultiPolygon geometry types.
+          CRS is NOT EPSG:4326. Do NOT reproject in Bronze.
+
+  events:
+    type: tabular
+    provenance: "District Evolution Master Events Dataset"
+    notes: >
+      Contains 1550 event records across 3 event types (SPLIT, NEW_DISTRICT,
+      RENAME) from 3 distinct source files. district_id identifies a district
+      (not an event); the same district_id appears in multiple events.
+      effective_year is an OBSERVED YEAR — an integer representing the year
+      the event occurred. It is NOT an exact date and must NEVER be silently
+      converted to a DATE without explicit precision labelling.
+    datasets:
+      master:
+        path: data/bronze/events/district_evolution_master.csv
+        source_pk: null
+        notes: >
+          No natural unique event PK exists. district_id has 803 unique
+          values across 1550 rows. Bronze assigns a synthetic _bronze_row_id.
+          Source event_types (SPLIT, NEW_DISTRICT, RENAME) require mapping
+          to Architecture §9 event taxonomy in Silver/Gold — NOT in Bronze.
+          Ambiguous split cases (CLEAN_SPLIT vs CARVE_OUT) must be
+          quarantined, not inferred from parent-name persistence.

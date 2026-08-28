@@ -1,0 +1,9 @@
+.phase9_venv/
+__pycache__/
+*.duckdb
+*.csv
+*.parquet
+*.geoparquet
+*.gpkg
+*.dylib
+*.so
